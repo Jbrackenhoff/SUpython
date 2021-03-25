@@ -209,7 +209,7 @@ class suhdrscale:
         self.t=np.linspace(self.f1[0],self.f1[0]+(self.ns[0]-1)*self.d1[0],int(self.ns[0]));
 
 # Read in the header data and the amplitudes of the traces
-def readsu(filename, scale=1):
+def readsu(filename, scale=1, minv=np.nan, maxv=np.nan):
     
     # filename = path to the file to be read in
     # scale    = scale the header data from SU format to python format (=1) or not (=0)
@@ -221,7 +221,7 @@ def readsu(filename, scale=1):
     # Check whether the file path exists
     filetest = Path(filename)
     if filetest.is_file()==False:
-        raise Exception('File could not be found')    
+        raise Exception('File could not be found')
     
     # Open the data to determine the size
     fp = open(filename,'rb');
@@ -233,28 +233,72 @@ def readsu(filename, scale=1):
     file = fp.read(240);
     inivalues = struct.unpack(vari_bytes,file)
     
-    # From the header grab the trace samples and the amount of receivers and allocate the data
+    # From the header grab the trace samples and the amount of receivers
     ns = inivalues[38]
     nx = int(size/(240+4*ns))
-    amp = np.zeros((ns,nx))
+    
+    # Determine how many values to read in
+    if np.isnan(minv)==False:
+        nxbegin = int(minv)
+    else:
+        nxbegin = 0
+    if np.isnan(maxv)==False:
+        nxend = int(maxv)
+    else:
+        nxend = nx
+        
+    # Check whether the start and end values are on the grid
+    if nxend < nxbegin:
+        print("Warning! The starting value %d is higher than end value %d. Setting starting value to %d" % (nxbegin,nxend,nxend-1))
+        nxbegin = nxend-1
+    if nxbegin < 0:
+        print("Warning! The starting value %d is lower than 0. Setting value to 0" % nxbegin)
+        nxbegin = 0
+    elif nxbegin > nx-1:
+        print("Warning! The starting value %d is higher than the maximum %d. Setting value to %d" % (nxbegin,nx-1,nx-1))
+        nxbegin = nx - 1
+    if nxend > nx:
+        print("Warning! The end value %d is higher than the maximum %d. Setting value to %d" % (nxend,nx,nx))
+        nxend = nx
+    elif nxend < 1:
+        print("Warning! The end value %d is lower than 1. Setting value to 1" % (nxend))
+        nxbegin = nx - 1
+        
+    nxout = nxend - nxbegin
     
     # Allocate the header object
     nrval = len(vari)
-    values = np.zeros((nrval,nx))
-    values[:,0] = inivalues[0:nrval]
+    values = np.zeros((nrval,nxout))
+    
+    # Allocate the data
+    amp = np.zeros((ns,nxout))
     
     # Set the format for reading in one trace
     fmt = "<%df" % ns;
     
+    # Skip the data that is not desired
+    fp.seek(0,0)
+    fp.seek(nxbegin*(240+ns*4),1)
+    
     # Loop over the file to read in the traces and the headers
-    for ix in range(nx):
+#    for ix in range(nxout):
+#        file = fp.read(4*ns)
+#        tmp = np.reshape(struct.unpack(fmt,file),(ns))
+#        amp[:,ix] = tmp;
+#        file = fp.read(240);
+#        if ix<(nx-1):
+#            inivalues = struct.unpack(vari_bytes,file)
+#            values[:,ix+1] = inivalues[0:nrval]
+            
+    # Loop over the file to read in the headers
+    for ix in range(nxout):
+#        print(ix)
+        file = fp.read(240);
+        inivalues = struct.unpack(vari_bytes,file)
+        values[:,ix] = inivalues[0:nrval]
         file = fp.read(4*ns)
         tmp = np.reshape(struct.unpack(fmt,file),(ns))
         amp[:,ix] = tmp;
-        file = fp.read(240);
-        if ix<(nx-1):
-            inivalues = struct.unpack(vari_bytes,file)
-            values[:,ix+1] = inivalues[0:nrval]
            
     # Close the file
     fp.close()
@@ -268,7 +312,7 @@ def readsu(filename, scale=1):
     return(amp,hdr)
     
 # Read in the amplitudes of the traces
-def readsuamp(filename):        
+def readsuamp(filename, minv=np.nan, maxv=np.nan):        
     
     # filename = path to the file to be read in
     
@@ -290,16 +334,51 @@ def readsuamp(filename):
     file = fp.read(240);
     inivalues = struct.unpack(vari_bytes,file)
     
-    # From the header grab the trace samples and the amount of receivers and allocate the data
+    # From the header grab the trace samples and the amount of receivers
     ns = inivalues[38]
     nx = int(size/(240+4*ns))
-    amp = np.zeros((ns,nx))
+    
+    # Determine how many values to read in
+    if np.isnan(minv)==False:
+        nxbegin = int(minv)
+    else:
+        nxbegin = 0
+    if np.isnan(maxv)==False:
+        nxend = int(maxv)
+    else:
+        nxend = nx
+        
+    # Check whether the start and end values are on the grid
+    if nxend < nxbegin:
+        print("Warning! The starting value %d is higher than end value %d. Setting starting value to %d" % (nxbegin,nxend,nxend-1))
+        nxbegin = nxend-1
+    if nxbegin < 0:
+        print("Warning! The starting value %d is lower than 0. Setting value to 0" % nxbegin)
+        nxbegin = 0
+    elif nxbegin > nx-1:
+        print("Warning! The starting value %d is higher than the maximum %d. Setting value to %d" % (nxbegin,nx-1,nx-1))
+        nxbegin = nx - 1
+    if nxend > nx:
+        print("Warning! The end value %d is higher than the maximum %d. Setting value to %d" % (nxend,nx,nx))
+        nxend = nx
+    elif nxend < 1:
+        print("Warning! The end value %d is lower than 1. Setting value to 1" % (nxend))
+        nxbegin = nx - 1
+        
+    nxout = nxend - nxbegin
+    
+    # Allocate the data
+    amp = np.zeros((ns,nxout))
     
     # Set the format for reading in one trace
     fmt = "<%df" % ns;
     
+    # Skip the data that is not desired
+    fp.seek(0,0)
+    fp.seek(nxbegin*(240+ns*4)+240,1)
+    
     # Loop over the file to read in the traces
-    for ix in range(nx):
+    for ix in range(nxout):
         file = fp.read(4*ns)
         tmp = np.reshape(struct.unpack(fmt,file),(ns))
         amp[:,ix] = tmp;
@@ -311,7 +390,7 @@ def readsuamp(filename):
     return(amp)
     
 # Read in the header data
-def readsuhdr(filename, scale=1):
+def readsuhdr(filename, scale=1, minv=np.nan, maxv=np.nan):
     
     # filename = path to the file to be read in
     # scale    = scale the header data from SU format to python format (=1) or not (=0)
@@ -340,18 +419,49 @@ def readsuhdr(filename, scale=1):
     ns = inivalues[38]
     nx = int(size/(240+4*ns))
     
+    # Determine how many values to read in
+    if np.isnan(minv)==False:
+        nxbegin = int(minv)
+    else:
+        nxbegin = 0
+    if np.isnan(maxv)==False:
+        nxend = int(maxv)
+    else:
+        nxend = nx
+        
+    # Check whether the start and end values are on the grid
+    if nxend < nxbegin:
+        print("Warning! The starting value %d is higher than end value %d. Setting starting value to %d" % (nxbegin,nxend,nxend-1))
+        nxbegin = nxend-1
+    if nxbegin < 0:
+        print("Warning! The starting value %d is lower than 0. Setting value to 0" % nxbegin)
+        nxbegin = 0
+    elif nxbegin > nx-1:
+        print("Warning! The starting value %d is higher than the maximum %d. Setting value to %d" % (nxbegin,nx-1,nx-1))
+        nxbegin = nx - 1
+    if nxend > nx:
+        print("Warning! The end value %d is higher than the maximum %d. Setting value to %d" % (nxend,nx,nx))
+        nxend = nx
+    elif nxend < 1:
+        print("Warning! The end value %d is lower than 1. Setting value to 1" % (nxend))
+        nxbegin = nx - 1
+        
+    nxout = nxend - nxbegin
+    
     # Allocate the header object
     nrval = len(vari)
-    values = np.zeros((nrval,nx))
-    values[:,0] = inivalues[0:nrval]
+    values = np.zeros((nrval,nxout))
+    
+    # Skip the data that is not desired
+    fp.seek(0,0)
+    fp.seek(nxbegin*(240+ns*4),1)
     
     # Loop over the file to read in the headers
-    for ix in range(nx):
-        fp.seek(ns*4,1)
+    for ix in range(nxout):
         file = fp.read(240);
-        if ix<(nx-1):
-            inivalues = struct.unpack(vari_bytes,file)
-            values[:,ix+1] = inivalues[0:nrval]
+        fp.seek(ns*4,1)
+        inivalues = struct.unpack(vari_bytes,file)
+        values[:,ix] = inivalues[0:nrval]
            
     # Close the file
     fp.close()
@@ -363,6 +473,53 @@ def readsuhdr(filename, scale=1):
         hdr = suhdrscale(values)
         
     return(hdr)
+    
+# Read in the header data
+def fldrsize(filename):
+    
+    # filename = path to the file to be read in
+    # scale    = scale the header data from SU format to python format (=1) or not (=0)
+    
+    # Set global variables
+    global vari
+    global vari_bytes
+    
+    # Check whether the file path exists
+    filetest = Path(filename)
+    if filetest.is_file()==False:
+        raise Exception('File could not be found')
+    
+    
+    # Open the data to determine the size
+    fp = open(filename,'rb');
+    fp.seek(0,2)
+    size = fp.tell()
+    
+    # Read in the first header
+    fp.seek(0,0)
+    file = fp.read(240);
+    inivalues = struct.unpack(vari_bytes,file)
+    
+    # From the header grab the trace samples and the amount of receivers
+    ns = inivalues[38]
+    nx = int(size/(240+4*ns))
+    fldr = inivalues[2]
+    
+    # Skip the data that is not desired
+    fp.seek(0,0)
+    
+    # Loop over the file to read in the headers
+    for ix in range(nx):
+        file = fp.read(240);
+        fp.seek(ns*4,1)
+        inivalues = struct.unpack(vari_bytes,file)
+        if inivalues[2]!=fldr:
+            break
+           
+    # Close the file
+    fp.close()
+        
+    return(ix,nx//ix)
     
 # Write out data from python format to SU format
 def writesu(filename, amp, hdr, scale=1):
@@ -427,6 +584,66 @@ def writesu(filename, amp, hdr, scale=1):
         
     # Close the data
     fpout.close()
+    
+# Write out data from python format to SU format
+def writesufp(fpout, amp, hdr, scale=1):
+    
+    # fpout    = opened file to write the data to
+    # amp      = matrix containing the amplitudes of the data
+    # hdr      = header object containing the headers for the data
+    # scale    = scale the header data from python format to SU format (=1) or not (=0)
+    
+    # Set global variables
+    global vari
+    global vari_bytes
+    
+    # Scale the data back to the SU format
+    if scale==1:
+        scalel=hdr.scalel[0];
+        scalco=hdr.scalco[0];
+        
+        if scalel<0:
+            scaledep=float(-1.0/scalel)
+        elif scalel==0:
+            scaledep=1.0;
+        else:
+            scaledep=float(scalel)
+        
+        if scalco<0:
+            scalepos=float(-1.0/scalco)
+        elif scalco==0:
+            scalepos=1.0;
+        else:
+            scalepos=float(scalco)
+    else:
+        scaledep=1.0;
+        scalepos=1.0;
+    
+    # Get the size of the data to be written
+    [nz,nx] = np.shape(amp)
+
+    # Write out the data, check for the appropiate header format for every attribute
+    for ix in range(nx):
+        for ih in range(94):
+            if ih < 80:
+                if vari[ih] in vari[12:19]:
+                    attrib = getattr(hdr,vari[ih])/scaledep;
+                elif vari[ih] in vari[21:25]:
+                    attrib = getattr(hdr,vari[ih])/scalepos;
+                else:
+                    attrib = getattr(hdr,vari[ih])
+            if vari_bytes[ih] == 'i':
+                fpout.write(struct.pack(vari_bytes[ih],int(attrib[ix])))
+            elif vari_bytes[ih] == 'h' and ih < 80:
+                fpout.write(struct.pack(vari_bytes[ih],np.short(attrib[ix])))
+            elif vari_bytes[ih] == 'h' and ih > 79:
+                fpout.write(struct.pack(vari_bytes[ih],np.short(0)))
+            elif vari_bytes[ih] == 'H':
+                fpout.write(struct.pack(vari_bytes[ih],np.ushort(attrib[ix])))
+            elif vari_bytes[ih] == 'f':
+                fpout.write(struct.pack(vari_bytes[ih],float(attrib[ix])))
+        data = amp[:,ix]
+        fpout.write(struct.pack('<%df' % len(data), *data))
  
 # Create a header object and set the most important values in the SU format
 def makehdr(amp, dx=10, dt=0.004, t0=0, f2=-3000, scl=-1000, gelev=0, sdepth=0):
@@ -567,3 +784,81 @@ def plotsu(Z,X,Y,comap='gray',vmin=0.0,vmax=0.0,xlabel='',ylabel='',clabel='',as
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.gca().invert_yaxis()
+    
+# Read in the header data and the amplitudes of the traces
+def sureshape(ampin, hdr):
+    
+    # ampin     = size(nz,ns*ny*nx) of an imput shot data
+    # hdrin     = hdr data used to determine the reshape
+    
+    # Determine the x-vector
+    tmp     = hdr.gx
+    xvec    = np.unique(tmp)
+    
+    # Determine the y-vector
+    tmp     = hdr.gy
+    yvec    = np.unique(tmp)
+    
+    # Determine the s-vector
+    tmp     = hdr.fldr
+    svec    = np.unique(tmp)
+    
+    # Determine the z-vector
+    zvec    = hdr.t
+    
+    # Determine the sample numbers for s, x, y and z
+    nx = len(xvec)
+    ny = len(yvec)
+    nz = int(hdr.ns[0])
+    ns = len(svec)
+            
+    # Reshape the shot to the shape (ns,nx,ny,nz)
+    amp = np.moveaxis(np.reshape(ampin,(nz,ns,ny,nx)),[0,1,2,3],[3,0,2,1])
+        
+    return(amp,svec,xvec,yvec,zvec)
+    
+# Convert shot data read in to a VTK object.
+# REQUIRES THE PYEVTK PACKAGE!!!
+def sutovtk(filename,shot,xvec,yvec,zvec):
+    
+    from pyevtk.hl import gridToVTK
+    
+    ns, nx, ny, nz = np.shape(shot)
+    if nx>1:
+        dx = (xvec[-1] - xvec[0])/(nx-1)
+    if ny>1:
+        dy = (yvec[-1] - yvec[0])/(ny-1)
+    if nz>1:
+        dz = (zvec[-1] - zvec[0])/(nz-1)
+    
+    if nx==1:
+        nx = nx + 1
+        dx=1.0
+        xvec = np.append(xvec,xvec[-1]+dx)
+        tmp = shot
+        shot = np.zeros((ns,nx,ny,nz))
+        shot[:,0,:,:] = tmp[:,0,:,:]
+        shot[:,1,:,:] = tmp[:,0,:,:]
+        tmp = 0
+    if ny==1:
+        ny = ny + 1
+        dy=1.0
+        yvec = np.append(yvec,yvec[-1]+dy)
+        tmp = shot
+        shot = np.zeros((ns,nx,ny,nz))
+        shot[:,:,0,:] = tmp[:,:,0,:]
+        shot[:,:,1,:] = tmp[:,:,0,:]
+        tmp = 0
+    if nz==1:
+        nz = nz + 1
+        dz=1.0
+        zvec = np.append(zvec,zvec[-1]+dz)
+        tmp = shot
+        shot = np.zeros((ns,nx,ny,nz))
+        shot[:,:,:,0] = tmp[:,:,:,0]
+        shot[:,:,:,1] = tmp[:,:,:,0]
+        tmp = 0
+    
+    shot = shot[0,:,:,:]
+    
+    gridToVTK(filename, xvec, yvec, zvec, pointData = {"amplitude" : shot})
